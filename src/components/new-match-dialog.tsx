@@ -98,14 +98,24 @@ export function NewMatchDialog({ atLimit }: { atLimit: boolean }) {
     if (source === "upload" && !file) return setError("Choose an MP4 file");
 
     setBusy("creating");
-    const res = await createMatch({
-      title,
-      event_name: eventName || null,
-      left_puller: left,
-      right_puller: right,
-      source_type: source,
-      youtube_id: videoId,
-    });
+    let res: Awaited<ReturnType<typeof createMatch>>;
+    try {
+      res = await createMatch({
+        title,
+        event_name: eventName || null,
+        left_puller: left,
+        right_puller: right,
+        source_type: source,
+        youtube_id: videoId,
+      });
+    } catch (err) {
+      setBusy(null);
+      return setError(
+        (err as Error)?.name === "TypeError"
+          ? "Cannot reach the server. If this is the dev server, it has stopped — restart npm run dev."
+          : (err as Error).message,
+      );
+    }
     if (!res.ok) {
       setBusy(null);
       if (res.code === "free_tier_limit") return setLimitHit(true);
