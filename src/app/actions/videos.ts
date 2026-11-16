@@ -1,14 +1,27 @@
 "use server";
 
-import ffmpeg from "fluent-ffmpeg";
-import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/supabase/server";
 import { uuid } from "@/lib/schemas";
 import { DEFAULT_FPS, MAX_UPLOAD_SECONDS } from "@/lib/constants";
 import type { ActionResult } from "@/lib/types";
 
-ffmpeg.setFfprobePath(ffprobeInstaller.path);
+type Ffmpeg = typeof import("fluent-ffmpeg");
+type FfprobeInstaller = typeof import("@ffprobe-installer/ffprobe");
+
+/**
+ * Loaded on demand: the installer resolves a per-platform binary that some hosts don't ship, and a
+ * top-level require would take down every action sharing this module's graph.
+ */
+async function loadFfmpeg(): Promise<Ffmpeg> {
+  const ffmpegMod = await import("fluent-ffmpeg");
+  const installerMod = await import("@ffprobe-installer/ffprobe");
+  const ffmpeg = ((ffmpegMod as unknown as { default?: Ffmpeg }).default ?? ffmpegMod) as Ffmpeg;
+  const installer = ((installerMod as unknown as { default?: FfprobeInstaller }).default ??
+    installerMod) as FfprobeInstaller;
+  ffmpeg.setFfprobePath(installer.path);
+  return ffmpeg;
+}
 
 function videoPath(userId: string, matchId: string) {
   return `${userId}/${matchId}/video.mp4`;
@@ -33,7 +46,8 @@ export async function getSignedUploadUrl(
   return { ok: true, data: { path, token: data.token, signedUrl: data.signedUrl } };
 }
 
-function probe(url: string): Promise<{ fps: number | null; duration: number | null }> {
+async function probe(url: string): Promise<{ fps: number | null; duration: number | null }> {
+  const ffmpeg = await loadFfmpeg();
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(url, (err, meta) => {
       if (err) return reject(err);
