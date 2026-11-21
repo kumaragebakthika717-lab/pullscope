@@ -6,7 +6,7 @@ export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 export const MAX_UPLOAD_SECONDS = 30 * 60;
 export const PLAYBACK_RATES = [0.25, 0.5, 1, 1.5, 2] as const;
 export const OVERALL_ROUND = 0;
-export const ROUND_OPTIONS = [1, 2, 3, 4, 5, OVERALL_ROUND] as const;
+export const ROUND_OPTIONS = [1, 2, 3, 4, 5, 6, 7, OVERALL_ROUND] as const;
 
 export const RATING_COLORS: Record<Rating, string> = {
   green: "#22c55e",
