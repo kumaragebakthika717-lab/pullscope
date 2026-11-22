@@ -3,13 +3,19 @@ import path from "node:path";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import { getPublicCard, type PublicCard } from "@/lib/card";
-import { RATING_COLORS } from "@/lib/constants";
+import { OVERALL_ROUND, RATING_COLORS } from "@/lib/constants";
+import { formatShort } from "@/lib/timecode";
 import type { AttributeRow, PullerSummary, Verdict } from "@/lib/verdict";
 
 export const runtime = "nodejs";
 
 const WIDTH = 1200;
 const ROW_H = 44;
+const NOTE_META_W = 112;
+const NOTE_TEXT_W = 384;
+const NOTE_LINE_H = 17;
+// Deliberately pessimistic so a wrapped note never overflows the fixed-height SVG.
+const NOTE_CHARS_PER_LINE = 50;
 const COLORS = {
   bg: "#0a0a0b",
   panel: "#141416",
@@ -91,47 +97,87 @@ function Tally({ summary, align }: { summary: PullerSummary; align: "left" | "ri
   );
 }
 
+function noteText(note: string) {
+  return note.replace(/\s+/g, " ").trim();
+}
+
+function noteHeight(note: string) {
+  return Math.max(1, Math.ceil(noteText(note).length / NOTE_CHARS_PER_LINE)) * NOTE_LINE_H;
+}
+
+function rowHeight(row: AttributeRow) {
+  const notes = row.evidence.filter((e) => e.note?.trim());
+  if (!notes.length) return ROW_H;
+  return ROW_H + 8 + notes.reduce((h, e) => h + noteHeight(e.note!) + 4, 0);
+}
+
+function bodyHeight(summary: PullerSummary) {
+  return summary.rows.reduce((h, row) => h + rowHeight(row), 0);
+}
+
+function roundShort(n: number) {
+  return n === OVERALL_ROUND ? "Overall" : `R${n}`;
+}
+
 function Row({ row, index }: { row: AttributeRow; index: number }) {
   const { counts, verdict } = row;
+  const notes = row.evidence.filter((e) => e.note?.trim());
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "center",
-        height: ROW_H,
-        padding: "0 16px",
+        flexDirection: "column",
         background: index % 2 ? COLORS.panel : "transparent",
         borderTop: `1px solid ${COLORS.border}`,
       }}
     >
-      <div style={{ display: "flex", flex: 1, fontSize: 17, fontWeight: 600, color: COLORS.text, overflow: "hidden" }}>
-        {row.attribute.name}
+      <div style={{ display: "flex", alignItems: "center", height: ROW_H, padding: "0 16px" }}>
+        <div style={{ display: "flex", flex: 1, fontSize: 17, fontWeight: 600, color: COLORS.text, overflow: "hidden" }}>
+          {row.attribute.name}
+        </div>
+        <div style={{ display: "flex", gap: 10, fontSize: 14, color: COLORS.muted, marginRight: 14 }}>
+          {(["green", "red", "black"] as const).map((r) => (
+            <div key={r} style={{ display: "flex", alignItems: "center", gap: 4, opacity: counts[r] ? 1 : 0.35 }}>
+              <Dot color={RATING_COLORS[r]} size={9} />
+              <div>{counts[r]}</div>
+            </div>
+          ))}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            width: 96,
+            padding: "5px 0",
+            borderRadius: 6,
+            background: VERDICT_COLOR[verdict],
+            color: verdict === "unrated" ? COLORS.muted : "#ffffff",
+            fontFamily: "Barlow",
+            fontWeight: 700,
+            fontSize: 16,
+            letterSpacing: 1,
+          }}
+        >
+          {VERDICT_LABEL[verdict]}
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 10, fontSize: 14, color: COLORS.muted, marginRight: 14 }}>
-        {(["green", "red", "black"] as const).map((r) => (
-          <div key={r} style={{ display: "flex", alignItems: "center", gap: 4, opacity: counts[r] ? 1 : 0.35 }}>
-            <Dot color={RATING_COLORS[r]} size={9} />
-            <div>{counts[r]}</div>
-          </div>
-        ))}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          width: 96,
-          padding: "5px 0",
-          borderRadius: 6,
-          background: VERDICT_COLOR[verdict],
-          color: verdict === "unrated" ? COLORS.muted : "#ffffff",
-          fontFamily: "Barlow",
-          fontWeight: 700,
-          fontSize: 16,
-          letterSpacing: 1,
-        }}
-      >
-        {VERDICT_LABEL[verdict]}
-      </div>
+      {notes.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", padding: "0 16px 8px" }}>
+          {notes.map((e) => (
+            <div key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 6, paddingTop: 4 }}>
+              <div style={{ display: "flex", marginTop: 5 }}>
+                <Dot color={RATING_COLORS[e.rating]} size={7} />
+              </div>
+              <div style={{ display: "flex", width: NOTE_META_W, fontSize: 11, lineHeight: "14px", fontWeight: 600, color: COLORS.muted }}>
+                {roundShort(e.round_number)} · {formatShort(e.timestamp_sec)}
+              </div>
+              <div style={{ display: "flex", width: NOTE_TEXT_W, fontSize: 13, lineHeight: `${NOTE_LINE_H}px`, color: COLORS.text }}>
+                {noteText(e.note!)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -270,8 +316,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const card = await getPublicCard(slug, false);
   if (!card) return new Response("Not found", { status: 404 });
 
-  const rows = Math.max(card.left.rows.length, 1);
-  const height = 40 + 34 + 28 + 126 + 18 + 26 + 24 + 50 + rows * ROW_H + 22 + 24 + 40 + 6;
+  const body = Math.max(bodyHeight(card.left), bodyHeight(card.right), ROW_H);
+  const height = 40 + 34 + 28 + 126 + 18 + 26 + 24 + 50 + body + 22 + 24 + 40 + 6;
 
   const [fonts, thumb] = await Promise.all([
     loadFonts(),
