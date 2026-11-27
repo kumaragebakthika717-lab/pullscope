@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, LayoutGrid, ListChecks } from "lucide-react";
+import { Dumbbell, LayoutGrid, ListChecks, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Matches", icon: LayoutGrid },
   { href: "/vault", label: "Vault", icon: Dumbbell },
+  { href: "/analysis", label: "Analysis", icon: TrendingUp },
   { href: "/settings/rubric", label: "Rubric", icon: ListChecks },
 ];
 
