@@ -66,6 +66,8 @@ export type MatchAnalysis = {
   fps_source: FpsSource;
   duration_sec: number | null;
   video_name: string | null;
+  /** Streamed source URL. The video is not downloaded; YouTube or a direct MP4/WebM link. */
+  video_url?: string | null;
   /** True when the video file itself is kept in IndexedDB on this device. */
   video_stored: boolean;
   events: MatchEvent[];

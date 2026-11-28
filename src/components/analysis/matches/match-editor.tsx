@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Flag,
@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_UPLOAD_BYTES } from "@/lib/constants";
-import { VideoPlayer, type PlayerHandle } from "@/components/workspace/video-player";
+import { VideoPlayer, type PlayerHandle, type VideoSource } from "@/components/workspace/video-player";
 import { createTimeStore, useTime, type TimeStore } from "@/lib/time-store";
 import { formatTimecode } from "@/lib/timecode";
 import { summarizeMatch, type MatchSummary } from "@/lib/analysis/match";
@@ -53,7 +53,7 @@ function isTypingTarget(el: EventTarget | null) {
 
 export function MatchEditor({
   analysis,
-  videoUrl,
+  source,
   onChange,
   onClose,
   onEditDetails,
@@ -61,7 +61,7 @@ export function MatchEditor({
   onAttachVideo,
 }: {
   analysis: MatchAnalysis;
-  videoUrl: string | null;
+  source: VideoSource | null;
   onChange: (next: MatchAnalysis) => void;
   onClose: () => void;
   onEditDetails: () => void;
@@ -83,7 +83,6 @@ export function MatchEditor({
   const fps = analysis.fps;
   const opponentName = analysis.opponent || "Opponent";
   const summary = summarizeMatch(analysis);
-  const source = useMemo<{ kind: "upload"; url: string } | null>(() => (videoUrl ? { kind: "upload", url: videoUrl } : null), [videoUrl]);
   const events = [...analysis.events].sort((a, b) => b.t - a.t || b.created_at.localeCompare(a.created_at));
 
   const commit = useCallback(
@@ -320,9 +319,9 @@ export function MatchEditor({
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Video not stored</CardTitle>
+                <CardTitle className="text-base">Video not attached</CardTitle>
                 <CardDescription>
-                  This match was saved without the video. Load the same file to review it — the tags line up with the video&apos;s timeline.
+                  This match has no stored video. Attach the file to review it — the tags line up with the video&apos;s timeline.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -368,7 +367,7 @@ export function MatchEditor({
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!videoUrl}
+                    disabled={!source}
                     onClick={(e) => {
                       e.currentTarget.blur();
                       markRound();
@@ -387,7 +386,7 @@ export function MatchEditor({
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   className="h-12 justify-start font-semibold"
-                  disabled={!videoUrl}
+                  disabled={!source}
                   onClick={(e) => {
                     e.currentTarget.blur();
                     addEvent("exchange_start", "athlete");
@@ -398,7 +397,7 @@ export function MatchEditor({
                 <Button
                   variant="outline"
                   className="h-12 justify-start font-semibold"
-                  disabled={!videoUrl}
+                  disabled={!source}
                   onClick={(e) => {
                     e.currentTarget.blur();
                     addEvent("exchange_start", "opponent");
@@ -432,7 +431,7 @@ export function MatchEditor({
               <div className="grid gap-2 sm:grid-cols-3">
                 <Button
                   variant="secondary"
-                  disabled={!videoUrl}
+                  disabled={!source}
                   onClick={(e) => {
                     e.currentTarget.blur();
                     addEvent("first_strike", side);
@@ -442,7 +441,7 @@ export function MatchEditor({
                 </Button>
                 <Button
                   variant="secondary"
-                  disabled={!videoUrl}
+                  disabled={!source}
                   onClick={(e) => {
                     e.currentTarget.blur();
                     addEvent("takedown_attempt", side);
@@ -452,7 +451,7 @@ export function MatchEditor({
                 </Button>
                 <Button
                   variant="secondary"
-                  disabled={!videoUrl}
+                  disabled={!source}
                   onClick={(e) => {
                     e.currentTarget.blur();
                     addEvent("positional_change", side);

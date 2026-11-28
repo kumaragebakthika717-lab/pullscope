@@ -11,10 +11,17 @@ import { ChartCanvas } from "@/components/analysis/chart-canvas";
 import { MatchSetup } from "@/components/analysis/matches/match-setup";
 import { MatchEditor } from "@/components/analysis/matches/match-editor";
 import { MatchDetailsDialog } from "@/components/analysis/matches/match-details-dialog";
+import type { VideoSource } from "@/components/workspace/video-player";
 import { deleteMatchAnalysis, getVideo, listMatchAnalyses, putVideo, saveMatchAnalysis } from "@/lib/analysis/store";
 import { summarizeMatch } from "@/lib/analysis/match";
 import { formatDate, formatSeconds } from "@/lib/analysis/format";
+import { parseYoutubeId } from "@/lib/youtube";
 import type { MatchAnalysis } from "@/lib/analysis/types";
+
+function sourceFromStoredUrl(url: string): VideoSource {
+  const videoId = parseYoutubeId(url);
+  return videoId ? { kind: "youtube", videoId } : { kind: "upload", url };
+}
 
 export function MatchesWorkspace() {
   const [analyses, setAnalyses] = useState<MatchAnalysis[] | null>(null);
@@ -22,14 +29,14 @@ export function MatchesWorkspace() {
   const [active, setActive] = useState<MatchAnalysis | null>(null);
   const [creating, setCreating] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoSource, setVideoSource] = useState<VideoSource | null>(null);
   const urlRef = useRef<string | null>(null);
   const openToken = useRef(0);
 
-  const replaceUrl = useCallback((url: string | null) => {
+  const replaceSource = useCallback((source: VideoSource | null) => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    urlRef.current = url;
-    setVideoUrl(url);
+    urlRef.current = source?.kind === "upload" && source.url.startsWith("blob:") ? source.url : null;
+    setVideoSource(source);
   }, []);
 
   useEffect(() => {
@@ -57,12 +64,16 @@ export function MatchesWorkspace() {
     const token = ++openToken.current;
     setCreating(false);
     setActive(analysis);
-    replaceUrl(null);
+    replaceSource(null);
+    if (analysis.video_url) {
+      replaceSource(sourceFromStoredUrl(analysis.video_url));
+      return;
+    }
     if (!analysis.video_stored) return;
     try {
       const blob = await getVideo(analysis.id);
       if (token !== openToken.current) return;
-      if (blob) replaceUrl(URL.createObjectURL(blob));
+      if (blob) replaceSource({ kind: "upload", url: URL.createObjectURL(blob) });
       else toast.warning("The stored video is missing from this browser. Load the file again to review it.");
     } catch (e) {
       if (token === openToken.current) toast.error((e as Error).message);
@@ -73,7 +84,7 @@ export function MatchesWorkspace() {
     openToken.current += 1;
     setDetailsOpen(false);
     setActive(null);
-    replaceUrl(null);
+    replaceSource(null);
   }
 
   function persist(next: MatchAnalysis) {
@@ -85,7 +96,7 @@ export function MatchesWorkspace() {
   async function attachVideo(file: File, keep: boolean) {
     if (!active) return;
     const target = active;
-    replaceUrl(URL.createObjectURL(file));
+    replaceSource({ kind: "upload", url: URL.createObjectURL(file) });
     let stored = false;
     if (keep) {
       try {
@@ -98,6 +109,7 @@ export function MatchesWorkspace() {
     persist({
       ...target,
       video_name: file.name,
+      video_url: null,
       video_stored: stored,
       updated_at: new Date().toISOString(),
     });
@@ -184,7 +196,7 @@ export function MatchesWorkspace() {
         <MatchEditor
           key={active.id}
           analysis={active}
-          videoUrl={videoUrl}
+          source={videoSource}
           onChange={persist}
           onClose={closeEditor}
           onEditDetails={() => setDetailsOpen(true)}
@@ -215,15 +227,16 @@ export function MatchesWorkspace() {
 
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <Info className="size-3.5 shrink-0" />
-        Videos and tags stay in this browser (IndexedDB). Nothing is uploaded and no AI inference is called.
+        Tags stay in this browser (IndexedDB). Uploaded videos never leave the device; video links stream from their source.
+        No AI inference is called.
       </p>
 
       {creating && (
         <MatchSetup
-          onCreated={(analysis, url) => {
+          onCreated={(analysis, source) => {
             setAnalyses((prev) => [analysis, ...(prev ?? [])]);
             setActive(analysis);
-            replaceUrl(url);
+            replaceSource(source);
             setCreating(false);
           }}
           onCancel={() => setCreating(false)}
@@ -250,7 +263,7 @@ export function MatchesWorkspace() {
           <Film className="size-10 text-muted-foreground" />
           <div>
             <p className="font-semibold">No match analyses yet</p>
-            <p className="text-sm text-muted-foreground">Load a match video, step through it and tag the exchanges.</p>
+            <p className="text-sm text-muted-foreground">Paste a video link or load a file, step through it and tag the exchanges.</p>
           </div>
           <Button variant="outline" onClick={() => setCreating(true)}>
             <Clapperboard /> Analyse your first match

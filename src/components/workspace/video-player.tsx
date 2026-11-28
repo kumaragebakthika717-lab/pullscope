@@ -243,7 +243,7 @@ export function VideoPlayer({ source, fps, timeStore, onDuration, ref }: Props) 
           <video
             ref={videoEl}
             src={source.url}
-            crossOrigin="anonymous"
+            crossOrigin={source.url.startsWith("blob:") ? "anonymous" : undefined}
             playsInline
             preload="auto"
             className="absolute inset-0 size-full cursor-pointer"

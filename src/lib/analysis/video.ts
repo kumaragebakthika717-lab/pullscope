@@ -28,6 +28,22 @@ export function readVideoDuration(file: File): Promise<number | null> {
   });
 }
 
+/** Reads duration from a streamed URL without downloading the file. Returns null when the browser can't play it. */
+export function readVideoUrlDuration(url: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const done = (value: number | null) => {
+      video.removeAttribute("src");
+      video.load();
+      resolve(value);
+    };
+    video.onloadedmetadata = () => done(Number.isFinite(video.duration) ? video.duration : null);
+    video.onerror = () => done(null);
+    video.src = url;
+  });
+}
+
 /**
  * Estimates fps on-device from the video's frame callbacks (no server, no ffmpeg).
  * Returns null when the browser cannot report frame metadata; callers fall back to manual fps.
