@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Clapperboard } from "lucide-react";
+import { Activity, Calculator, Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/analysis/speed", label: "Speed & endurance", icon: Activity },
   { href: "/analysis/matches", label: "Match tagging", icon: Clapperboard },
+  { href: "/analysis/engine", label: "Technicality engine", icon: Calculator },
 ];
 
 export function AnalysisNav() {
@@ -29,7 +30,7 @@ export function AnalysisNav() {
           </Link>
         ))}
         <span className="ml-auto hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-          Local-only module · stored in this browser
+          Local-only module · nothing leaves this browser
         </span>
       </div>
     </div>
